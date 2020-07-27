@@ -7,7 +7,7 @@ MR data: /2g/data_2g.csv <br>
 Base station location info: /2g/BS_ALL.csv <br>
 
 ### Train a Tranfer learning-based Localization Model
-Import **util_tloc** and **TRF** (**The implmentation of Structure transfer**)modules in your code ("TLoc_Example_Code.ipynb"). <br>
+Import **util_tloc** and **TRF** (**The implmentation of Structure transfer**)modules in your code ("TLoc_Example_Code.py"). <br>
 
 Divide the MR data by serving BS, and each serving BS indicates a certain domain. Compute the **domain distance** between each pair of domains.<br>
 
