@@ -7,14 +7,11 @@ import math
 from math import log
 
 from sklearn.datasets import make_classification
-
 from sklearn.cross_validation import train_test_split
 
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.ensemble import RandomForestClassifier as RFRaw
-
 from sklearn.tree import DecisionTreeClassifier
-
 from sklearn.datasets import make_classification
 
 from sklearn.metrics import confusion_matrix
@@ -46,20 +43,16 @@ def convert_from_scikit_learn_to_dic_ite(node_index,is_leaves, children_left,chi
             'labels_distribution':d3}
 
         else:
-
             left = children_left[0]-node_index[0]
             if(left==-1):
                 left_tree = None
-
             else:
-
                 left_tree = convert_from_scikit_learn_to_dic_ite(node_index[left:],is_leaves[left:], children_left[left:],children_right[left:],feature[left:],threshold[left:],value[left:],labels,C)
 
             right = children_right[0]-node_index[0]
 
             if(right==-1):
                 right_tree = None
-
             else:
                 right_tree = convert_from_scikit_learn_to_dic_ite(node_index[right:],is_leaves[right:], children_left[right:],children_right[right:],feature[right:],threshold[right:],value[right:],labels,C)
 
@@ -88,7 +81,6 @@ def convert_from_scikit_learn_to_dic(tree,labels,C):
     stack = [(0, -1)]  # seed is the root node id and its parent depth
 
     while len(stack) > 0:
-
         node_id, parent_depth = stack.pop()
         node_depth[node_id] = parent_depth + 1
 
@@ -98,7 +90,6 @@ def convert_from_scikit_learn_to_dic(tree,labels,C):
             stack.append((children_right[node_id], parent_depth + 1))
 
         else:
-
             is_leaves[node_id] = True
 
     return convert_from_scikit_learn_to_dic_ite(node_index,is_leaves, children_left,children_right,feature,threshold,Val,labels,C)
@@ -118,7 +109,6 @@ def tree_predict(tree, x):
 
     
 def forest_posterior(RF,x):
-
     T = len(RF)  #the number of trees
     P0 = tree_predict(RF[0],x)
     C = len(P0)
@@ -131,172 +121,10 @@ def forest_posterior(RF,x):
 
 def forest_predict_ensemble(RF,x, C_l):
     Pt = forest_posterior(RF,x)
-    
-    '''tree  = Pt.shape[0]
-    pred=[]
-    for i in range(tree):
-        prt = list(Pt[i,:])
-        prt = prt.index(np.max(prt))
-        pred.append(C_l[prt])
-    ypred = float(np.sum(pred))/tree '''
-        
     Pforest = Pt.mean(axis=0)
     ypred = np.argmax(Pt.mean(axis=0))    
     
     return C_l[ypred]
-
-
-
-'''def classify(tree, x):
-
-    if tree['is_leaf']:
-
-        return tree['labels_distribution']
-
-    else:
-
-        # split on feature.
-
-        val_split_feature = x[tree['splitting_feature']]
-
-        if val_split_feature < tree['threshold']:
-
-            return classify(tree['left'], x)
-
-        else:
-
-            return classify(tree['right'],x)
-
-
-
-def evaluate_classification_error_tree(tree, X, y):
-
-    if type(y) == np.uint8:
-
-        P = classify(tree,X)
-        prediction = np.argmax(P)
-
-        error = int(prediction != y)
-
-    else:
-
-        P = map(lambda x: classify(tree,x), X)
-        P = np.asarray(P)
-
-        prediction = np.argmax(P,axis=1)
-        mistakes = sum(prediction != y)
-
-        error = mistakes/len(y)
-
-
-
-    return error
-
-
-
-def intermediate_node_num_mistakes(labels_in_node):
-
-    if len(labels_in_node) == 0:
-
-        return 0
-
-    C,unique_counts = np.unique(labels_in_node,return_counts=True) #the id of classes and number of each
-
-    return (len(labels_in_node) - unique_counts[np.argmax(unique_counts)])
-
-
-
-def datapath(tree, x, branch = 1):
-
-    # if the node is a leaf node.
-
-    if tree['is_leaf']:
-        return branch
-    else:
-
-        # split on feature.
-        split_feature = tree['splitting_feature']
-        split_threshold = tree['threshold']
-
-
-
-        if x[split_feature] < split_threshold:
-            return datapath(tree['left'], x, 2*branch)
-
-        else:
-            return datapath(tree['right'],x, 2*branch+1)
-
-
-
-#******* SER FUNCTIONS *********
-
-def expansion_reduction_SKL(tree,XT1,yT1,XT2,yT2,C):
-
-    leavesData1 = map(lambda x: datapath(tree,x), XT1)
-    leavesData2 = map(lambda x: datapath(tree,x), XT2)
-
-
-
-    Uleaves1 = np.unique(leavesData1)  #the path to each leaf followed by data1
-    Uleaves2 = np.unique(leavesData2)  #the path to each leaf followed by data2
-    Uleaves = list(set(Uleaves1) & set(Uleaves2)) #leaves reached by both data1 and data2
-
-
-
-    for i in Uleaves:
-        ind_data1 = leavesData1==i #indices of datapoints for each leaf
-        ind_data2 = leavesData2==i
-
-        if len(ind_data1) < 2:  #do not expand if there is only 1 datapoint
-            continue
-
-        estimator = DecisionTreeClassifier(max_features='sqrt') #use sqrt the number of feat.
-        estimator = estimator.fit(XT1[ind_data1,:],yT1[ind_data1])
-
-   
-        Exp_tree = convert_from_scikit_learn_to_dic(estimator,np.unique(yT1[ind_data1]),C)
-        Err_leavesT2 = intermediate_node_num_mistakes(yT2[ind_data2])/len(yT2[ind_data2])
-        Err_subtreeT2 = evaluate_classification_error_tree(Exp_tree, XT2[ind_data2,:], yT2[ind_data2])
-
-        #comparing the error of the subtree with that at the leaf node of the original tree
-
-        if Err_subtreeT2 < Err_leavesT2:
-            tree = mergetrees(tree,i,Exp_tree)
-
-    return tree
-
-
-
-def mergetrees(tree1,leafnr,tree2):
-
-    leafnrbin = bin(leafnr)[3:]  #path is from the 4th element of the binary on: 0 = go left, 1 = go right
-    path = ''
-
-    for i in range(len(leafnrbin)):
-        if leafnrbin[i] == '0':
-            path=path+str("['left']")
-
-        else:
-            path=path+str("['right']")
-
-    # print(path)
-
-    exec ('tree1'+path+"['prediction']"+'=None')
-
-    exec ('tree1'+path+"['is_leaf']"+'=False')
-
-    exec ('tree1'+path+"['left']"+"=tree2['left']")
-
-    exec ('tree1'+path+"['right']"+"=tree2['right']")
-
-    exec ('tree1'+path+"['splitting_feature']"+"=tree2['splitting_feature']")
-
-    exec ('tree1'+path+"['threshold']"+"=tree2['threshold']")
-
-    exec ('del(tree1'+path+"['labels_distribution'])")
-
-    return tree1
-'''
 
 
 #**** FOREST FUNCTIONS *******
@@ -304,7 +132,6 @@ def mergetrees(tree1,leafnr,tree2):
 #Convert Scikit Learn RF to our format
 
 def forest_convert(estimator):
-
     RF = []  #the new RF list
     ntrees = estimator.n_estimators
     classes = estimator.classes_
@@ -342,29 +169,21 @@ def forest_SER(RF,XT,yT,C,Verbose=False):
         yT1 = yT[indbootstrap1]
         yT2 = yT[indbootstrap2]
 
-
-
         treeNew = expansion_reduction_SKL(RF[t],XT1,yT1,XT2,yT2,C)
         RFnew.append(treeNew)
-
-
 
     if Verbose:
         print 'Forest refined on target data!'
 
     return RFnew
 
-
-
 #************STRUT functions**************************
 def convert_from_scikit_learn_to_dic_ite_strut(node_index,is_leaves, children_left,children_right,feature,threshold,value,labels,C):
-
         a = is_leaves[0]
         b = feature[0]
         c = threshold[0]
 
         if (a):
-
             d = value[0]  #datapoints of each class in the node
             d2 = np.squeeze(d/np.sum(d))
             d3 = np.zeros(C)
@@ -382,18 +201,13 @@ def convert_from_scikit_learn_to_dic_ite_strut(node_index,is_leaves, children_le
             left = children_left[0]-node_index[0]
             if(left==-1):
                 left_tree = None
-
             else:
-
                 left_tree = convert_from_scikit_learn_to_dic_ite_strut(node_index[left:],is_leaves[left:], children_left[left:],children_right[left:],feature[left:],threshold[left:],value[left:],labels,C)
 
             right = children_right[0]-node_index[0]
-
             if(right==-1):
                 right_tree = None
-
             else:
-
                 right_tree = convert_from_scikit_learn_to_dic_ite_strut(node_index[right:],is_leaves[right:], children_left[right:],children_right[right:],feature[right:],threshold[right:],value[right:],labels,C)
 
             return {'is_leaf'          : False,
@@ -404,19 +218,15 @@ def convert_from_scikit_learn_to_dic_ite_strut(node_index,is_leaves, children_le
             'right'            : right_tree,
             'labels_distribution': None}
 
-
-
 def convert_from_scikit_learn_to_dic_strut(feature,threshold,C,Q,children_left,children_right):
     labels = range(0,C,1)
     n_nodes = len(children_left)
-
     node_index = np.array(range(0,n_nodes))
 
     Val = Q  
     node_depth = np.zeros(shape=n_nodes)
 
     is_leaves = np.zeros(shape=n_nodes, dtype=bool)
-
     stack = [(0, -1)]  # seed is the root node id and its parent depth
 
     while len(stack) > 0:
@@ -424,11 +234,9 @@ def convert_from_scikit_learn_to_dic_strut(feature,threshold,C,Q,children_left,c
         node_depth[node_id] = parent_depth + 1
 
     # If we have a test node
-
         if (children_left[node_id] != children_right[node_id]):
             stack.append((children_left[node_id], parent_depth + 1))
             stack.append((children_right[node_id], parent_depth + 1))
-
         else:
             is_leaves[node_id] = True
 
@@ -437,7 +245,6 @@ def convert_from_scikit_learn_to_dic_strut(feature,threshold,C,Q,children_left,c
 
 
 def treesubset(subset,children_left,children_right):
-
     ch_left = np.zeros(len(children_left))
     ch_right = np.zeros(len(children_right))
 
@@ -491,11 +298,8 @@ def entropy(y):
 
     return H
 
-
-
 #computes split for given feature
 def partition(Xtarget,ytarget,index_of_data,feature,num_class_target,index_class_target,threshold): # divide the data to the left and rightbased on the threshold
-
     left = index_of_data[Xtarget[index_of_data,feature]<threshold]
 
     if(len(left)==0):
@@ -505,15 +309,11 @@ def partition(Xtarget,ytarget,index_of_data,feature,num_class_target,index_class
     right = index_of_data[Xtarget[index_of_data,feature]>=threshold]
     labels_right = ytarget[right]
 
-
-
     qL_full = np.bincount(labels_left)
     qR_full = np.bincount(labels_right)
 
     qL_full = np.append(qL_full,np.zeros(np.max([num_class_target-qL_full.shape[0],0])))
     qR_full = np.append(qR_full,np.zeros(np.max([num_class_target-qR_full.shape[0],0])))
-
-
 
     qL = qL_full[index_class_target]
     qR = qR_full[index_class_target]
@@ -521,14 +321,12 @@ def partition(Xtarget,ytarget,index_of_data,feature,num_class_target,index_class
     qL = qL/qL.sum()
     qR = qR/qR.sum()
 
-
     return [qL,left,qR,right]
 
 
 
 def dg(Sleft,lenleft,Sright,lenright,QL,QR): # DG function as in the paper
     return 1-(lenleft/(lenleft+lenright))*jsd(Sleft,QL)-(lenright/(lenleft+lenright))*jsd(Sright,QR)
-
 
 
 def threshold_selection(X,y,S,f,QL,QR,num_class_target,index_class_target,verbos): # finding the best threshold
@@ -551,7 +349,6 @@ def threshold_selection(X,y,S,f,QL,QR,num_class_target,index_class_target,verbos
         Val_infogain = np.append(Val_infogain,infogain(qL,len(left),qR,len(right)))        #Val_swap = np.append(Val_swap,dg(Sleft,len(left),Sright,len(right),QR,QL)) # this is the divergence measure for each threshold split
 
     if(verbos):
-
         fig, (ax1, ax2, ax3) = plt.subplots(1, 3, sharex='col', sharey='row')
         ax1.plot(fvals,Val_DG,'r')
         ax1.hold(True)
@@ -577,29 +374,22 @@ def threshold_selection(X,y,S,f,QL,QR,num_class_target,index_class_target,verbos
     if(len(S)>0):
         [ql, left, qr, right] = partition(X,y,S,f,num_class_target,index_class_target,th_infogain)
         th = th_infogain
-
     else:
         [ql, left, qr, right] = partition(X,y,S,f,num_class_target,index_class_target,th_DG)
         th = th_DG
 
-
     if(verbos):
-
         ax2.plot(ql)
         ax2.hold(True)
         ax2.plot(qr)
         ax2.hold(False)
         ax2.set_title('Dist Target Data')
-
-
-
         ax3.plot(QL)
         ax3.hold(True)
         ax3.plot(QR)
         ax3.hold(False)
         ax3.set_title('Dist Source Data')
-
-
+        
     return [th, ql, qr, left, right]
 
 def convert_label(ysource,ytarget):
@@ -737,6 +527,5 @@ def STRUT(Xsource,ysource,Xtarget,ytarget, n_trees,verbos = False):
         ST = convert_from_scikit_learn_to_dic_strut(Features[subset],thresh[subset],C,Qnew[subset,:],ch_lf.astype(int),ch_lr.astype(int))
         
         RF.append(ST)
-       
 
     return RF, C_l
