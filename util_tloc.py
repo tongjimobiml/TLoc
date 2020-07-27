@@ -564,7 +564,7 @@ def perpare_source_df(tr_feature_r, source_list):
     return source_df, source_l
 
 
-import TRF as STL
+import STL
 reload(STL)
 
 
@@ -572,21 +572,18 @@ def struct_transfer(domain_tr, domain_te, source_df, source_l, rg):
     serving_bs = domain_tr[['Lon','Lat']].iloc[0,:]
     
     tr_label = domain_tr['re_ID'].values
-    #te_label = domain_te[['re_lon', 're_lat']].values
     tr_f = compute_relative_feature(domain_tr)
     te_f = compute_relative_feature(domain_te)
    
-    #print source_l, tr_label
+    
     STRUT_RF, C_l = STL.STRUT(source_df.values, source_l, tr_f.values, tr_label, n_trees=50, verbos = False)
     pred = np.asarray(map(lambda x:STL.forest_predict_ensemble(STRUT_RF, x, C_l), te_f.values))
-    #pred = np.array([label_all[idx] for idx in pred])
     
     pred_loc = np.array([rg.grid_center[idx] for idx in pred])
-    #pred_loc = np.array(pred_loc)
     pred_loc[:, 0] += serving_bs[0]
     pred_loc[:, 1] += serving_bs[1]
     error = [distance(pt1, pt2) for pt1, pt2 in zip(pred_loc, domain_te[['Longitude','Latitude']].values)]
     error = sorted(error)
-    #print np.median(error)
+    
     return np.median(error), error
 
